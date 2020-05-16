@@ -53,7 +53,7 @@ int submit_read_request(char *file_path, io_uring &ring) {
     const off_t file_sz = get_file_size(fd);
     off_t remaining = file_sz;
     off_t offset = 0;
-    int blocks = (file_sz + BLKGETSIZE - 1) / BLOCK_SIZE;
+    const int blocks = (file_sz + BLKGETSIZE - 1) / BLOCK_SIZE;
     auto *pInfo(new file_info(blocks));
     while (remaining) {
         off_t to_read = std::min(remaining, 1L * BLOCK_SIZE);
@@ -86,7 +86,7 @@ void console_output(const iovec &iovec) {
 int process_completion(io_uring &ring) {
     io_uring_cqe *cqe;
     if (io_uring_wait_cqe(&ring, &cqe) < 0) {
-        cerr << "io_uring_wailt error\n";
+        cerr << "io_uring_wait error\n";
         return 1;
     }
     if (cqe->res < 0) {
@@ -95,7 +95,7 @@ int process_completion(io_uring &ring) {
     }
     std::unique_ptr<file_info> pInfo(static_cast<file_info *>(io_uring_cqe_get_data(cqe)));
     const off_t file_sz = pInfo->sz;
-    int blocks = (file_sz + BLKGETSIZE - 1) / BLOCK_SIZE;
+    const int blocks = (file_sz + BLKGETSIZE - 1) / BLOCK_SIZE;
     for (int i = 0; i < blocks; ++i)
         console_output(pInfo->iovecs[i]);
     io_uring_cqe_seen(&ring, cqe);

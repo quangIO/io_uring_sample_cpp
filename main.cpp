@@ -8,13 +8,18 @@
 using std::cerr, std::cout, std::ios, std::endl;
 
 struct file_info {
-    off_t sz;
-    iovec iovecs[128];
+    off_t sz{};
+    iovec *iovecs;
+
+    explicit file_info(int blocks) {
+        iovecs = static_cast<iovec *>(malloc(blocks * sizeof(iovec)));
+    }
 
     ~file_info() {
         for (int i = 0; iovecs[i].iov_base; ++i) {
             free(iovecs[i].iov_base);
         }
+        free(iovecs);
     }
 };
 
@@ -49,7 +54,7 @@ int submit_read_request(char *file_path, io_uring &ring) {
     off_t remaining = file_sz;
     off_t offset = 0;
     int blocks = (file_sz + BLKGETSIZE - 1) / BLOCK_SIZE;
-    auto *pInfo(new file_info);
+    auto *pInfo(new file_info(blocks));
     while (remaining) {
         off_t to_read = std::min(remaining, 1L * BLOCK_SIZE);
         offset += to_read;

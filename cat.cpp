@@ -8,17 +8,18 @@
 using std::cerr, std::cout, std::ios, std::endl;
 
 struct file_info {
-    off_t sz{};
+    off_t sz;
     iovec *iovecs;
 
-    explicit file_info(int blocks) {
+    explicit file_info(off_t sz) {
+        this->sz = sz;
+        auto blocks = (sz + BLOCK_SIZE - 1) / BLOCK_SIZE;
         iovecs = static_cast<iovec *>(malloc(blocks * sizeof(iovec)));
     }
 
     ~file_info() {
-        for (int i = 0; iovecs[i].iov_base; ++i) {
+        for (int i = 0; i < (sz + BLOCK_SIZE - 1) / BLOCK_SIZE; ++i)
             free(iovecs[i].iov_base);
-        }
         free(iovecs);
     }
 };
@@ -53,8 +54,8 @@ int submit_read_request(char *file_path, io_uring &ring) {
     const off_t file_sz = get_file_size(fd);
     off_t remaining = file_sz;
     off_t offset = 0;
-    const int blocks = (file_sz + BLKGETSIZE - 1) / BLOCK_SIZE;
-    auto *pInfo(new file_info(blocks));
+    const int blocks = (file_sz + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    auto *pInfo = new file_info(file_sz);
     while (remaining) {
         off_t to_read = std::min(remaining, 1L * BLOCK_SIZE);
         offset += to_read;
@@ -68,7 +69,6 @@ int submit_read_request(char *file_path, io_uring &ring) {
         current_block++;
         remaining -= to_read;
     }
-    pInfo->sz = file_sz;
     auto *sqe = io_uring_get_sqe(&ring);
     io_uring_prep_readv(sqe, fd, pInfo->iovecs, blocks, 0);
     io_uring_sqe_set_data(sqe, pInfo);
@@ -78,9 +78,8 @@ int submit_read_request(char *file_path, io_uring &ring) {
 }
 
 void console_output(const iovec &iovec) {
-    for (int i = 0; i < iovec.iov_len; ++i) {
+    for (int i = 0; i < iovec.iov_len; ++i)
         cout << (static_cast<char *>(iovec.iov_base))[i];
-    }
 }
 
 int process_completion(io_uring &ring) {
